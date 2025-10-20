@@ -1,0 +1,2312 @@
+MASTER BUILD GUIDE.md
+
+Project: Gemini Playground – Universal Runtime Environment
+Revision: v1.0 (Full handoff edition)
+Author: Doc + AI Dev Pipeline
+Date: 2025-10-19
+
+🔭 Purpose
+
+This guide is the complete handoff and build contract for the Gemini Playground application.
+It merges every known rule, architectural detail, coding standard, and implementation plan into one file.
+Anyone—human or AI—should be able to open this document, load the repo, and resume development safely without losing functionality or context.
+
+1 | Project Identity
+
+Gemini Playground is a multi-language, AI-enhanced execution and visualization environment.
+It provides:
+
+Real-time code editing and preview.
+
+Dynamic runtime selection (Gemini, OpenAI, Node, Python etc.).
+
+Unified logging, telemetry, and AI-assisted development.
+
+Plugin-driven architecture that can self-extend at runtime.
+
+2 | Core Development Rules & Ethos
+2.1 Full-File Rule
+
+Whenever new code is delivered:
+
+Always output the full file contents.
+
+Include absolute file path (e.g. /core/runtimeManager.js).
+
+Indicate whether the file is 🆕 New, 🔁 Replacement, or 🗑️ Deleted.
+
+Include the exact line count after the code block.
+
+2.2 Preserve Functionality
+
+Do not remove user-written functions unless absolutely necessary.
+If a section must be rewired or replaced, it must either:
+
+Call the original function internally, or
+
+Re-implement the same interface so no caller breaks.
+
+2.3 Change Transparency
+
+Each modification must include:
+
+Brief summary of what changed and why.
+
+Risk level (low / medium / high).
+
+Migration notes (if APIs or data paths changed).
+
+2.4 Execution Policy
+
+Code must remain portable across Windows / macOS / Linux.
+
+No hard-coded paths outside the project root.
+
+Use relative imports and ESM syntax consistently.
+
+All network calls must pass through centralized modules (webFetch.js, aiService.js).
+
+2.5 Testing Before Replacement
+
+Every replacement file must compile and execute cleanly before overwriting production versions.
+Temporary staging directory: /sandbox/replace_test/.
+
+2.6 Coding Standards
+
+Tabs: 2 spaces.
+
+Naming: camelCase for functions, PascalCase for components.
+
+Comments: use doc-block format (/** … */) for top-level functions and modules.
+
+Each file starts with a header comment stating path + purpose.
+
+2.7 Behavioral Rules for AI Assistants
+
+Never truncate code.
+
+Never remove functional wiring Doc built manually.
+
+Always infer intent from existing code patterns before proposing restructure.
+
+No "surface fixes"—address root logic.
+
+If logic is uncertain, flag the line with // VERIFY_BEFORE_COMMIT.
+
+3 | Folder & File Layout (2025-10 baseline)
+Root Structure
+/
+├── index.js                     # Server entry (Electron backend)
+├── main.js                      # Vite/Electron bootstrap
+├── preload.js                   # Bridge loader
+├── package.json
+├── package-lock.json
+├── README.md
+├── tailwind.config.js
+├── postcss.config.js
+├── settings.json
+├── tsconfig.json
+├── tsconfig.node.json
+├── vite.config.js
+├── vite-env.d.ts
+├── .eslint.config.js
+├── .env
+├── .gitignore
+│
+├── /core/
+│   ├── aiService.js
+│   ├── alerts.js
+│   ├── archive.js                      # 🆕 (to add)
+│   ├── assets.js
+│   ├── audit.js
+│   ├── autoReporter.js
+│   ├── codeIndex.js
+│   ├── dragBridge.js
+│   ├── fileBridge.js
+│   ├── firebase.js
+│   ├── github.js
+│   ├── heartbeatScheduler.js
+│   ├── models.js
+│   ├── pluginManager.js
+│   ├── projects.js
+│   ├── pruner.js
+│   ├── replicaCheck.js
+│   ├── report.js
+│   ├── runtimeManager.js              # 🆕 (to add)
+│   ├── sandbox.js                     # 🆕 (to add)
+│   ├── voice.js                       # 🆕 (to add)
+│   ├── webFetch.js                    # 🆕 (to add)
+│   └── runtimes/
+│       ├── nodeAdapter.js             # 🆕
+│       └── pythonAdapter.js           # 🆕
+│
+├── /config/
+│   ├── email.json
+│   ├── settings.json
+│   └── pluginSchema.json             # 🆕
+│
+├── /plugins/
+│   ├── autoFormatter.js
+│   ├── liveCanvas.js                # 🆕
+│   └── runtimeInspector.js          # 🆕
+│
+├── /preload/
+│   ├── fileBridge.js
+│   ├── dragPreload.js
+│   └── runtimeBridge.js             # 🆕
+│
+├── /server/
+│   ├── index.js
+│   └── api/
+│       └── ai.js
+│
+├── /renderer/
+│   ├── main.tsx
+│   ├── index.css
+│   ├── index.html
+│   ├── dashboard/
+│   │   ├── App.tsx
+│   │   ├── AIPanel.tsx
+│   │   ├── CanvasPane.tsx           # 🆕
+│   │   ├── OutputRenderer.tsx       # 🆕
+│   │   ├── ConsoleFeed.tsx          # 🆕
+│   │   ├── RuntimeSelector.tsx      # 🆕
+│   │   └── BrowserPane.tsx          # 🆕
+│   │
+│   ├── context/
+│   │   ├── AIContext.tsx
+│   │   ├── AssetsContext.tsx
+│   │   ├── AuthContext.tsx
+│   │   ├── CodeContext.tsx
+│   │   ├── ProjectsContext.tsx
+│   │   ├── SettingsContext.tsx
+│   │   └── RuntimeContext.tsx       # 🆕
+│   │
+│   └── shims/
+│       └── process.js
+│
+├── /logs/
+│   ├── ai_usage.log
+│   ├── runtime_logs/
+│   └── model_cache.json
+│
+├── /docs/
+│   ├── PLUGIN_DEV.md
+│   ├── REPORTS.md
+│   ├── ARCH_IMPLEMENTATION_SPEC.md
+│   └── MASTER_TODO.md
+│
+└── sandbox/
+    └── replace_test/
+
+4 | System Architecture & Implementation Spec (Progress Update)This section reflects the final state of all core modules and renderer components built during Batches 1 through 8, plus the 5 major new features.4.2 Core Layer — Detailed ModulesModuleStatusNotesaiService.jsIMPLEMENTEDExtended to handle AI Persona (Feature 1) and Ollama (Feature 2).alerts.jsREPLACED[Batch 1] Added runtime() and sandbox() alert channels.archive.jsNEW[Batch 1] Implements zipping/unzipping utilities.audit.jsREPLACED[Batch 1] Added logRuntimeEvent for telemetry.codeIndex.jsREPLACED[Feature 5] Implemented AST parsing for symbol extraction and added Project Context retrieval functions.heartbeatScheduler.jsREPLACED[Batch 7] Added job for runtime cache rotation (hourly log pruning).pluginManager.jsREPLACED[Batch 6] Implemented vm2 sandboxing and schema-based permissions/resource caps.runtimeManager.jsNEW[Batch 1] Central dispatcher for code execution.sandbox.jsNEW[Batch 1] Execution isolation layer (vm2 for Node, child_process for others).voice.jsNEW[Batch 5] Corrected IPC flow for voice start/stop/transcription.webFetch.jsREPLACED[Batch 4] Corrected root flaw: handles Text/HTML output, integrated dynamic TTL/Whitelist.runtimes/NEWAdded nodeAdapter.js and pythonAdapter.js (Batch 2).4.3 Preload Layer (Progress Update)ModuleStatusNotesfileBridge.jsREPLACED[All Batches] Whitelisted IPC events for Archive, Runtime, WebFetch, Voice, and CodeIndex (codeIndexGetFileData).runtimeBridge.jsNEW[Batch 2] Streams logs and status from main to renderer.aiBridge.jsNEW[Feature 1] Securely exposes aiService.generate to the renderer over IPC.4.4 Server Layer (Progress Update)ModuleStatusNotesindex.jsREPLACED[Batch 1] Exposed /archive/*, /web/fetch, and /metrics routes.main.jsREPLACED[Feature 2] Registered the Ollama Provider and corrected the main preload script path.4.5 Renderer Layer (Progress Update)ModuleStatusNotesCanvasPane.tsxNEW[Batch 3, Feature 4] Editor/output pane. Integrated "Generate Tests" button.OutputRenderer.tsxNEW[Batch 3] Renders output (Text/JSON).ConsoleFeed.tsxNEW[Batch 3, Feature 3] Live console. Integrated "Debug with AI" button logic.RuntimeSelector.tsxNEW[Batch 3] Runtime dropdown menu.BrowserPane.tsxNEW[Batch 4] Embedded browser with fetch tool.App.tsxREPLACED[Batch 8] Final cohesive layout. Implements stateful pane switching and sidebar integration.CommandPalette.tsxREPLACED[Batch 3, 5, 5.2] Added run, stop, voice, and select runtime commands. Integrated AI Persona (Feature 1) and Project Context (Feature 5).ReportsPane.tsxNEW[Batch 7] UI to display aggregated Runtime, AI, and Voice telemetry.SettingsModal.tsxREPLACED[Feature 1, 2] Integrated AI Persona editor and the Ollama provider selection UI.4.6 Contexts (Progress Update)ModuleStatusNotesRuntimeContext.tsxREPLACED[Batch 3, Feature 3] Holds execution state, editor code, and added stderrOutput for debugging.AIContext.tsxREPLACED[Feature 3] Refactored to use aiBridge, added messages state and addMessage for conversation history.SettingsContext.tsxREPLACED[Batch 4, Feature 1] Added dynamic Whitelist/TTL and the AI Persona state/setter.... (Sections 4.7 through 4.8 remain unchanged) ...5 | MASTER TO-DO / BUILD PLAN (Finalized)This roadmap is complete. All batches are marked Done.BatchGoalFilesStatus1Core Foundation & Infrastructure8 Files (4 New, 4 Replaced)✅ Done2Runtime Adapters & Execution4 Files (3 New, 1 Replaced)✅ Done3Renderer Core & Contexts8 Files (5 New, 3 Replaced)✅ Done4Browser Pane & Web Tools3 Files (1 New, 2 Replaced)✅ Done5Voice & Automation4 Files (1 New, 3 Replaced)✅ Done6Plugin & Extensibility5 Files (4 New, 1 Replaced)✅ Done7Telemetry, Reports & Testing4 Files (2 New, 2 Replaced)✅ Done8Visual Polish & Finalization5 Files (2 New, 3 Replaced)✅ DoneImplemented New Features (Post-Batch 8)FeatureSummaryStatus1-AI PersonaStored custom AI instructions in Settings, applied to all AI prompts.✅ Done2-OllamaAdded support for local Ollama models via a dedicated provider.✅ Done3-DebuggingAdded "Debug with AI" button on errors; analysis is streamed to the AI Panel.✅ Done4-Test GenAdded "Generate Tests" button; generated code is displayed in the AI Panel.✅ Done5-Project ContextRefactored codeIndex.js with AST parsing; Context-aware prompt implemented for ai-explain.✅ Done
+
+Batch 6 — Plugin & Extensibility
+
+Goal: Finalize plugin architecture.
+
+Files
+
+Path	Status	Notes
+/core/pluginManager.js	🔁	Add permissions + resource caps
+/config/pluginSchema.json	🆕	Schema for validation
+/plugins/liveCanvas.js	🆕	Example runtime plugin
+/plugins/runtimeInspector.js	🆕	Example debug plugin
+/docs/PLUGIN_DEV.md	🆕	Authoring instructions
+
+Completion Criteria: Plugins load dynamically and appear in UI registry.
+
+Batch 7 — Telemetry, Reports & Testing
+
+Goal: Full visibility and health monitoring.
+
+Files
+
+Path	Status	Notes
+/core/report.js	🔁	Add runtime and voice metrics
+/core/heartbeatScheduler.js	🔁	Add runtime cache rotation
+/docs/REPORTS.md	🆕	Define telemetry schema
+/renderer/dashboard/ReportsPane.tsx	🆕	Display telemetry + errors
+
+Completion Criteria: Logs and usage charts visible in Reports pane.
+
+Batch 8 — Visual Polish & Finalization
+
+Goal: Refine aesthetics and responsive layout.
+
+Tasks
+
+Consistent font sizes and weights.
+
+Smooth transitions for pane switches.
+
+Custom icons for runtime types.
+
+Update Tailwind themes (light/dark).
+
+Final QA pass with voice and runtime combos.
+
+Completion Criteria: Zero visual glitches on desktop scales; smooth interaction at 60 FPS.
+
+6 | Operational Workflow & Change Control
+
+Everything from here defines how the work should happen, not just what to build.
+Think of it as the playbook that locks in your dev philosophy and guardrails.
+
+6.1 Branch & Commit Strategy
+
+Main rule: Never code directly in main.
+
+Branch pattern:
+
+feature/<scope>-<shortdesc>
+fix/<issue>-<shortdesc>
+refactor/<module>
+release/v<version>
+
+
+Commit format:
+
+[batch] <area>: <action>
+
+
+Examples:
+
+[batch1] core: implement runtimeManager
+[batch3] renderer: wire CanvasPane and RuntimeContext
+[batch6] plugins: add schema validation
+
+
+Each batch corresponds to a milestone in MASTER_TODO.md.
+
+When a batch completes:
+
+Test all flows.
+
+Merge to main with tag: v<major>.<minor>-b<batch#>
+Example: v1.0-b4
+
+6.2 Build Commands
+
+The project uses Vite + Electron + Node backends.
+
+Action	Command
+Dev start	npm run dev
+Build app	npm run build
+Lint	npm run lint
+Test runtimes	npm run test:runtimes
+Package Electron app	npm run package
+
+Custom commands live in /scripts/ (to be added).
+Example:
+
+node scripts/runRuntimeTest.js --lang python
+
+6.3 Testing Workflow
+Unit tests
+
+Framework: Vitest or Jest.
+
+Focus areas:
+
+sandbox execution
+
+runtime dispatch
+
+aiService error handling
+
+Integration tests
+
+Mock Gemini and OpenAI with local stubs.
+
+Validate model fallback order.
+
+Check runtime logs for correct state transitions.
+
+UI tests
+
+Framework: Playwright.
+
+Test scenarios:
+
+Run code → output visible.
+
+Runtime switch persists.
+
+Plugin load/unload doesn’t crash app.
+
+6.4 Handoff Testing Steps (for AI assistants)
+
+Whenever a new AI instance continues development, it should:
+
+Load this guide (MASTER_BUILD_GUIDE.md) into memory.
+
+Scan existing files to confirm folder integrity matches the layout map.
+
+Compare file headers — any missing or truncated header signals corruption.
+
+Run npm run lint — ensure syntax validity before touching logic.
+
+Backup everything into /sandbox/replace_test/ before overwrite.
+
+Only modify full files (never patch-line insertions).
+
+Log all changes into /docs/CHANGELOG.md under its batch.
+
+6.5 Error Recovery Protocol
+
+If runtime or AI models fail:
+
+Check /logs/runtime_logs/last.log.
+
+Compare with /core/audit.js for timestamp correlation.
+
+If sandbox isolation fails, rollback to last working adapter from /sandbox/replace_test/.
+
+Autorepair Logic (AI use only):
+
+If a function signature mismatch is detected between modules, regenerate the caller, not the callee.
+
+Always preserve manual overrides marked with:
+
+// DOC_MANUAL_OVERRIDE_START
+...
+// DOC_MANUAL_OVERRIDE_END
+
+6.6 Versioning & Release
+
+Version schema: major.minor.patch-batch
+
+Example: 1.2.0-b5
+
+Each batch must produce a release artifact in /builds/.
+
+When a batch is marked complete:
+
+Tag commit.
+
+Export logs/ai_usage.log and runtime_logs/ as .zip.
+
+Push build notes to /docs/REPORTS.md.
+
+6.7 Configuration Management
+
+Primary Config File: /config/settings.json
+Contains:
+
+{
+  "theme": "dark",
+  "defaultRuntime": "node",
+  "autoSave": true,
+  "keys": {
+    "GEMINI_API_KEY": "...",
+    "OPENAI_API_KEY": "..."
+  }
+}
+
+
+All config updates should pass through SettingsContext.tsx and core/aiService.js.
+Never directly read/write JSON from renderer.
+
+6.8 Logging & Alerts
+Type	File	Trigger
+AI usage	/logs/ai_usage.log	Every generate() call
+Runtime	/logs/runtime_logs/*.json	Each execution
+Cache	/logs/model_cache.json	AI response caching
+Alerts	/core/alerts.js	error(), warn(), info()
+Reports	/docs/REPORTS.md	batch summaries
+
+Alert Levels:
+
+info("runtime started", "runtime")
+warn("timeout exceeded", "sandbox")
+error("execution crash", "runtime")
+
+6.9 Collaboration Protocol (for multi-AI or human+AI)
+
+When multiple devs or AI workers are coding:
+
+Assign batches, never files.
+
+Always merge completed batches to /sandbox/merge_staging/.
+
+Run diff check → only commit if 100% tested.
+
+Each participant logs summary to /docs/DEV_LOG.md:
+
+Date: 2025-10-19
+Batch: 3
+Files: CanvasPane.tsx, RuntimeContext.tsx
+Changes: Implemented runtime state + console feed.
+
+6.10 Shutdown & Resume Logic
+
+Before halting work:
+
+Run npm run export:state (to snapshot configs + logs).
+
+Zip /sandbox/replace_test/ + /logs/ → store under /archive/auto/.
+
+Update MASTER_TODO.md progress marks.
+
+Commit message:
+
+savepoint: batch <n> – partial progress checkpoint
+
+
+When resuming:
+
+Extract from latest /archive/auto/*.zip.
+
+Compare guide’s folder map with actual FS before starting.
+
+
+7 | Visual & UX Stylebook
+7.1 Core Design Principles
+
+Minimal noise, maximum focus.
+The editor should feel like a workspace, not a product ad.
+
+Readable at 2AM.
+Typography and contrast take priority over color “pop.”
+
+Motion with purpose.
+Animations must communicate state — not distract.
+
+Symmetry where possible.
+Avoid asymmetrical paddings, uneven borders, or inconsistent icon sizing.
+
+Clarity over cleverness.
+Every icon and color should mean something; don’t hide behavior in flair.
+
+7.2 Color System
+
+Colors are defined in renderer/styles/theme.css and imported via Tailwind config.
+
+Role	Light Theme	Dark Theme
+Primary	#2563EB (blue-600)	#3B82F6 (blue-500)
+Accent	#A855F7 (violet-500)	#C084FC (violet-400)
+Background	#F9FAFB	#0D1117
+Panel	#FFFFFF	#161B22
+Border	#E5E7EB	#2D333B
+Text (main)	#111827	#F9FAFB
+Text (muted)	#6B7280	#9CA3AF
+Error	#DC2626	#F87171
+Success	#16A34A	#4ADE80
+Warning	#F59E0B	#FBBF24
+
+Each token is used through Tailwind’s --tw-color-<role> variable mapping.
+
+7.3 Typography
+
+Font stack:
+
+Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+
+
+Monospace areas:
+
+JetBrains Mono, SFMono-Regular, Menlo, Consolas, monospace
+
+
+Scale:
+
+h1 = 1.75rem
+h2 = 1.5rem
+h3 = 1.25rem
+body = 1rem
+small = 0.875rem
+code = 0.9375rem
+
+
+Weight: Regular (400), Medium (500), Bold (700)
+
+Use font-medium for UI text, font-bold only for headings or section titles.
+
+7.4 Layout System
+
+All major views (CanvasPane, BrowserPane, ReportsPane, etc.) follow this grid:
+
+-------------------------------------------------------
+| Sidebar (60px) |  Main Content (auto)  |  Right Pane |
+-------------------------------------------------------
+
+
+Sidebar: icons only (e.g., run, stop, AI chat, settings)
+
+Right Pane: collapsible drawers for logs, AI feedback, and settings.
+
+Minimum width: 1024px
+
+Max width for text: 900px
+
+Responsive breakpoints (Tailwind defaults):
+
+sm: 640px
+md: 768px
+lg: 1024px
+xl: 1280px
+2xl: 1536px
+
+7.5 Component Rules
+
+Buttons
+
+Default: subtle ghost style
+
+Primary actions (Run, Generate): filled with accent color
+
+Destructive: red outline + hover fill
+
+Panels
+
+Each major panel (.pane) should have:
+
+border: 1px solid var(--tw-color-border);
+border-radius: 8px;
+background: var(--tw-color-panel);
+
+
+Inputs
+
+Rounded corners: 6px
+
+Focus ring: 2px solid var(--tw-color-primary)
+
+Placeholder opacity: 0.6
+
+Tabs
+
+Active tab bold + underline accent
+
+Inactive tab: faded gray text
+
+Smooth slide transition: 0.2s ease-out
+
+7.6 Motion & Transitions
+
+Use CSS transitions for microfeedback only:
+
+transition: all 0.2s ease-in-out;
+
+
+Motion guidelines:
+
+Type	Duration	Example
+Hover	150ms	Button color
+Toggle	250ms	Panel open/close
+Load-in	400ms	Fade-in of pane
+Error pulse	200ms loop	Red flash for invalid input
+
+Disable unnecessary animations in performance mode (settings.performance = "minimal").
+
+7.7 Iconography
+
+Icon source: Heroicons (outline) or Lucide.
+
+Size system:
+
+small: 16px
+
+medium: 20px
+
+large: 24px
+
+All icons use currentColor for fill.
+
+Always wrap SVG icons with an <IconButton> component for accessibility.
+
+7.8 Themes & Preferences
+
+Themes live in /renderer/styles/themes/:
+
+themes/
+ ├── light.css
+ ├── dark.css
+ └── highcontrast.css
+
+
+SettingsContext.tsx toggles active theme and persists to localStorage:
+
+const { theme, setTheme } = useSettings();
+
+
+On change:
+
+document.documentElement.setAttribute("data-theme", theme);
+
+
+Tailwind variables are scoped under:
+
+[data-theme='dark'] {
+  --tw-color-bg: #0D1117;
+  --tw-color-panel: #161B22;
+}
+
+7.9 Panels & Navigation
+
+Top Toolbar
+
+Left: app logo + project title
+
+Center: file path / runtime indicator
+
+Right: Run / Stop / AI / Settings icons
+
+Left Sidebar
+
+Icons for: Files, Console, Browser, AI, Plugins, Settings
+
+Hover tooltip shows label
+
+Active icon: highlighted with accent underline
+
+Right Drawer
+
+AITaskHistoryTray, AIStatusIndicator, and ReportsPane stack vertically
+
+Collapsible with slide-out transition
+
+7.10 Accessibility
+
+WCAG 2.1 AA contrast minimum
+
+All interactive elements keyboard-accessible:
+
+Tab, Enter, Space
+
+Voice command fallback for critical actions
+
+Dynamic aria labels via React hooks
+
+7.11 CSS Organization
+renderer/
+ ├── index.css
+ ├── styles/
+ │    ├── base.css
+ │    ├── theme.css
+ │    ├── layout.css
+ │    ├── components.css
+ │    └── animations.css
+ └── tailwind.config.js
+
+
+Import order (in index.css):
+
+@import "./styles/base.css";
+@import "./styles/theme.css";
+@import "./styles/layout.css";
+@import "./styles/components.css";
+@import "./styles/animations.css";
+
+7.12 UI Consistency Checklist
+
+Before merging UI updates:
+
+ All panels use same padding (16px)
+
+ Font color matches theme
+
+ Buttons have hover state
+
+ No absolute positioning unless essential
+
+ Scrollbars styled for both OS themes
+
+ High contrast mode tested
+
+ No duplicated Tailwind classes
+
+7.13 Asset Management
+
+Assets (icons, logos, images) stored under:
+
+/assets/
+ ├── icons/
+ ├── logos/
+ └── ui/
+
+
+All imports go through AssetDrawer.tsx and AssetPreviewPane.tsx.
+Supports drag/drop via preload bridge.
+
+7.14 Future Enhancements
+
+Add glassmorphism theme option (backdrop-filter: blur(8px)).
+
+Optional “matrix rain” background in developer mode.
+
+Custom sound effects for code run/stop (toggle in settings).
+
+Auto theme sync with OS (prefers-color-scheme).
+
+
+8 | AI Integration Blueprint
+8.1 Architecture Overview
+
+Goal: make AI a first-class runtime service, not a bolt-on helper.
+
+Renderer (UI)
+   ↓ IPC
+Preload Bridge (fileBridge / aiBridge)
+   ↓
+Core (aiService → models → providers)
+   ↓
+Network (Gemini / OpenAI / Future)
+
+
+aiService.js — unified API layer; handles key loading, rate limits, and pluggable providers.
+
+models.js — executes requests, logs them, and handles fallbacks.
+
+renderer/context/AIContext.tsx — manages prompt state and results in UI.
+
+renderer/dashboard/AIPanel.tsx — visual interface for prompts, responses, and status indicators.
+
+8.2 Provider Flow
+
+1. Prompt Created → AIContext
+
+User types or voice-dictates prompt.
+
+Context adds entry to history stack (AIFeedbackPanel).
+
+2. Dispatch → aiService.generate()
+
+Context sends payload through preload bridge to core layer.
+
+aiService reads active provider (gemini, openai, auto).
+
+3. Model Selection → models.generate()
+
+Tries primary provider.
+
+If error or timeout, runs fallback chain (Gemini → OpenAI or vice versa).
+
+4. Response → Audit + Cache
+
+Logs into /logs/model_cache.json and /logs/ai_usage.log.
+
+Sends structured object back to renderer.
+
+5. UI Render
+
+AIPanel shows text response.
+
+AITaskHistoryTray archives conversation.
+
+8.3 Extending Providers
+
+New providers can be added without modifying existing code.
+
+import { registerProvider } from './core/aiService.js';
+
+registerProvider('anthropic', async (prompt, opts) => {
+ const res = await fetch('https://api.anthropic.com/v1/messages', { … });
+ return { provider: 'anthropic', text: res.output };
+});
+
+
+The UI automatically lists new providers from the registry.
+
+8.4 Streaming Responses
+
+Implemented through Server-Sent Events (SSE).
+
+aiService.generate() detects if options.stream === true.
+
+Renderer listens for ai:stream events via ipcRenderer.on.
+
+AIPanel displays partial responses as they arrive.
+
+Fallback to buffered mode if provider does not support SSE.
+
+8.5 Voice Integration
+
+Voice commands are routed through core/voice.js → aiService.
+Usage flow:
+
+User says “Ask Gemini to optimize this code.”
+
+Speech to text → Prompt → AIContext.
+
+Response spoken back via TTS engine (optional).
+
+Logs go to voice.log.
+
+8.6 Error Handling & Telemetry
+
+Each AI call produces two entries:
+
+File	Purpose
+/logs/ai_usage.log	Prompt, provider, duration
+/logs/model_cache.json	Recent responses cache
+
+Telemetry summary schema (/docs/REPORTS.md):
+
+{
+ "timestamp": "2025-10-19T02:42:00Z",
+ "provider": "gemini",
+ "model": "1.5-flash",
+ "latency": 1520,
+ "chars": 184,
+ "success": true
+}
+
+8.7 Security & Rate Limits
+
+Keys loaded only in aiService.js.
+
+Never exposed to renderer context.
+
+Per-provider rate limit (60 req/min default).
+
+Global queue shared across threads to avoid spikes.
+
+All requests logged with SHA256(prompt) hash only — no raw content.
+
+8.8 UI Integration Hooks
+
+UI events → AI calls mapping:
+
+Component	Event	Action
+CommandPalette	Shift + Enter	Send prompt → generate()
+AIPanel	Run button	Manual trigger
+AIStatusIndicator	Blink yellow	in-progress
+AIFeedbackPanel	+ Icon	New entry in history
+App.tsx	Ctrl + /	Open AI command bar
+
+All communication flows through AIContext to avoid cross-component state issues.
+
+8.9 Caching & Reuse
+
+getRecentCompletions(limit) returns latest cached results for instant replay.
+If prompt hash matches previous call, models.js returns cached output without API hit.
+Useful for voice repeats or plugin auto-runs.
+
+8.10 Future Integration Paths
+Target	Purpose
+Claude / Anthropic	Long-form reasoning tasks
+Mistral	Lightweight local inference
+LLama / Ollama	Offline mode
+Gemini Vision	Image + code analysis
+Whisper	Audio → Text transcription
+Stable Diffusion	Asset generation
+
+Each to be plugged via registerProvider() with their own auth config.
+
+8.11 Debug Utilities
+
+Run local diagnostics:
+
+npm run test:ai
+
+
+Outputs to /logs/ai_diagnostics.log:
+
+✅ Gemini: online (234 ms)
+✅ OpenAI: online (417 ms)
+⚠️ Cache: over limit (25 entries)
+
+8.12 AI Safety Rules (for autonomous modes)
+
+No unverified API calls without explicit approval flag.
+
+No file system writes outside /workspace/.
+
+Sensitive data masking in logs (sha256 for any string > 30 chars).
+
+Always prompt for confirmation before running generated code in sandbox.
+
+8.13 AI Workflow Checkpoints
+
+Before each AI batch merge:
+
+ Run testConnection() for all providers.
+
+ Validate API keys via validateKeys().
+
+ Confirm model names are current.
+
+ Flush model_cache.json if size > 20.
+
+ Compare latencies → choose default provider dynamically.
+
+9 | Runtime System Blueprint
+9.1 Concept
+
+Every runtime (language + environment) plugs into a common interface:
+
+RuntimeManager.run(lang, code, options)
+
+
+Each runtime adapter declares:
+
+{
+  id: "python",
+  label: "Python 3.12",
+  exec: async (code, opts) => {...},
+  detect: (fileName) => fileName.endsWith(".py")
+}
+
+
+Adapters live under /core/runtimes/.
+RuntimeManager handles scheduling, logging, and stream output to the renderer.
+
+9.2 Execution Layers
+Layer	Responsibility
+Renderer	Editor UI + console pane
+Preload	Safe IPC bridge for run/stop
+Core	RuntimeManager + individual adapters
+Worker	Executes sandboxed process
+Logger	Captures stdout/stderr and telemetry
+9.3 Adapters
+
+Example: /core/runtimes/node.js
+
+export default {
+  id: "node",
+  label: "Node JS",
+  exec: async (code, opts) => {
+    const {spawn} = await import("child_process");
+    return new Promise((resolve, reject) => {
+      const proc = spawn("node", ["-e", code], {timeout: opts.timeout || 5000});
+      let out = "", err = "";
+      proc.stdout.on("data", d => out += d);
+      proc.stderr.on("data", d => err += d);
+      proc.on("close", () => err ? reject(err) : resolve(out));
+    });
+  },
+  detect: f => f.endsWith(".js")
+}
+
+
+Other adapters mirror this:
+
+python.js → calls python3 -c
+
+bash.js → calls bash -c
+
+csharp.js → compiles and runs via dotnet script
+
+wasm.js → runs via WebAssembly runtime
+
+9.4 RuntimeManager
+
+Core orchestrator (/core/runtimeManager.js):
+
+import {logRuntimeEvent} from "./audit.js";
+import adapters from "./runtimes/index.js";
+
+export async function run(lang, code, opts = {}) {
+  const adapter = adapters[lang];
+  if (!adapter) throw new Error(`No runtime for ${lang}`);
+  const start = Date.now();
+  try {
+    const output = await adapter.exec(code, opts);
+    logRuntimeEvent(lang, Date.now() - start, true);
+    return {ok: true, output};
+  } catch (err) {
+    logRuntimeEvent(lang, Date.now() - start, false, err.message);
+    throw err;
+  }
+}
+
+9.5 Sandbox & Security
+
+Execution never touches host directly.
+
+Layer	Isolation Method
+Node/Python	vm2 or child_process spawn
+Browser	Web Worker
+Native	Docker container (bridge: /var/run/docker.sock)
+Offline	Ollama or WASM runtime
+
+Configurable via /config/runtime.json:
+
+{
+  "sandboxMode": "vm2",
+  "maxMemoryMB": 256,
+  "timeoutMS": 10000
+}
+
+9.6 Telemetry
+
+Every run emits:
+
+/logs/runtime_logs/<timestamp>.json
+
+
+Schema:
+
+{
+  "lang": "python",
+  "duration": 482,
+  "exit": 0,
+  "stdout": "...",
+  "stderr": ""
+}
+
+
+Used by:
+
+core/report.js to aggregate daily stats
+
+Dashboard pane for “Recent Runs”
+
+9.7 UI Integration
+
+Renderer components:
+
+Component	Purpose
+LiveEditor.tsx	Code editing + run hook
+ConsolePane.tsx	Displays stdout/stderr
+RuntimeSelector.tsx	Choose language adapter
+AssetPreviewPane.tsx	Render image/audio output
+AIStatusIndicator.tsx	Blink on AI-assisted run
+
+When user presses Ctrl + Enter:
+
+Editor sends ipcRenderer.send('runtime:run', {lang, code})
+
+Preload bridge calls RuntimeManager.run
+
+Output stream returns to ConsolePane
+
+9.8 Error Feedback
+
+If stderr exists → auto-highlight line numbers in editor.
+AI Context can suggest fixes via:
+
+AIContext.requestFix(err.message, codeSnippet)
+
+
+AIFeedbackPanel then displays “Apply Fix” button.
+
+9.9 Performance Tuning
+Metric	Goal
+Cold start <	800 ms
+Average run	< 3 s
+Memory cap	256 MB
+Cache hits	> 70%
+
+Enable telemetry dashboard (/renderer/dashboard/PerformancePane.tsx) to visualize runtime latency histograms.
+
+9.10 Extending Runtimes
+
+Add new adapter:
+
+core/runtimes/rust.js
+
+
+Export id, label, exec, detect.
+Update runtimes/index.js to import and register automatically.
+
+9.11 Security Checklist
+
+ No network calls without allowlist
+
+ Sandbox timeouts ≤ 10 s
+
+ No access outside /workspace
+
+ WASM modules validated via SHA256
+
+ Container image signatures checked
+
+9.12 Future Upgrades
+
+GPU runtime support for AI models
+
+Persistent session containers for stateful languages
+
+Cross-runtime dependency resolver (Python ↔ Node)
+
+Live collaboration debug view
+
+Headless CLI runner (--runtime <lang> --file <path>)
+
+
+10 | Plugin Ecosystem Blueprint
+10.1 Philosophy
+
+Everything that isn’t essential core logic belongs in a plugin.
+A plugin can extend UI, AI, Runtimes, Workflows, or Storage without changing internal files.
+They load dynamically from /plugins/ and self-register through the pluginManager.
+
+Goal: Make modification composable, not brittle.
+
+10.2 Plugin File Structure
+/plugins/
+ ├── autoFormatter.js
+ ├── runtimePython.js
+ ├── aiPromptTools.js
+ ├── uiThemeSwitcher.js
+ └── ...
+
+
+Each file exports:
+
+export const meta = {
+  id: "autoFormatter",
+  name: "Auto Formatter",
+  version: "1.0.0",
+  description: "Formats code automatically on save",
+  author: "Doc"
+}
+
+export function register(ctx) {
+  // ctx gives access to core hooks
+  ctx.on("file:save", (file) => formatFile(file));
+  ctx.ui.addButton("Format", formatActiveFile);
+}
+
+export function unregister(ctx) {
+  ctx.off("file:save", formatFile);
+}
+
+10.3 Plugin Manager
+
+File: /core/pluginManager.js
+Purpose: discover, validate, and manage plugin lifecycles.
+
+Lifecycle:
+
+discover() → validate() → register() → enable/disable()
+
+
+Registers available plugins in /config/plugins.json:
+
+{
+  "autoFormatter": true,
+  "aiPromptTools": false
+}
+
+
+Each loaded plugin gets its own sandbox context (ctx) with limited access to core APIs:
+
+{
+  ai: { generate, registerProvider },
+  runtime: { run },
+  ui: { addButton, addPanel },
+  events: { on, off, emit }
+}
+
+10.4 Registration Flow
+
+On startup, pluginManager.loadAll() scans /plugins/.
+
+For each file:
+
+import dynamically via import(pathToPlugin)
+
+verify meta fields and register() exist
+
+call register(ctx)
+
+Plugin becomes active and logged in /logs/plugin.log
+
+Example log:
+
+[2025-10-19 12:34:01] Loaded plugin: Auto Formatter v1.0.0 (active)
+
+10.5 Context Hooks
+Hook	Description
+on(event, fn)	subscribe to events (file:save, runtime:run, ai:response)
+off(event, fn)	unsubscribe
+emit(event, data)	broadcast custom events
+ui.addButton(label, action)	inject toolbar button
+ui.addPanel(id, component)	add new drawer pane
+ai.generate(prompt, opts)	call AI service directly
+runtime.run(lang, code)	execute code via runtime
+config.get(key) / config.set(key, value)	read/write app config
+10.6 Security Boundaries
+
+Every plugin executes in its own VM context:
+
+File I/O restricted to /workspace/ and /plugins/<id>/data/.
+
+No require() outside safe modules.
+
+No network access unless whitelisted in manifest:
+
+"permissions": ["network"]
+
+
+Logs written to /logs/plugins/<id>.log.
+
+If plugin misbehaves → auto-disable and alert via alerts.js.
+
+10.7 UI Integration
+
+Plugins can extend the dashboard:
+
+ctx.ui.addPanel("formatter", <FormatterPanel />);
+
+
+The system mounts it dynamically inside PluginManager.tsx.
+
+Available regions:
+
+Region	Description
+toolbar	icon buttons
+leftDrawer	persistent panes
+rightDrawer	collapsible panes
+commandPalette	keyword extensions
+
+Plugins register a manifest tag:
+
+meta.ui = ["toolbar", "commandPalette"]
+
+10.8 AI-Enhanced Plugins
+
+Some plugins delegate tasks to AI:
+
+autoCommenter → uses ai.generate("add docstrings to ...")
+
+promptMemory → stores past interactions
+
+refactorAdvisor → diffs code and suggests simplifications
+
+These use the same ctx.ai.generate call, which respects rate-limits and API keys.
+
+10.9 Plugin Events
+
+Global event registry (/core/events.js):
+
+Event	Payload	Trigger
+file:save	{path}	File saved in editor
+runtime:run	{lang, code}	User executes code
+ai:response	{provider, text}	AI returns output
+ui:ready	none	App rendered
+plugin:error	{id, message}	Plugin failed runtime
+10.10 Diagnostics
+
+npm run test:plugins
+Checks:
+
+manifest fields present
+
+register/unregister valid
+
+permissions safe
+
+runtime invocations mocked
+
+Reports → /logs/plugin_test.log.
+
+10.11 Versioning & Distribution
+
+Each plugin has its own semver and optional auto-update URL.
+Registry planned under /plugins/registry.json:
+
+{
+  "autoFormatter": {
+    "version": "1.0.1",
+    "updateUrl": "https://example.com/autoFormatter.json"
+  }
+}
+
+
+Future: online marketplace integration for community plugins.
+
+10.12 Plugin Lifecycle
+Phase	Function	Description
+Load	register()	initialize plugin context
+Enable	ctx.enable()	start listening for events
+Disable	unregister()	remove hooks
+Update	ctx.reload()	hot reload without restart
+Uninstall	ctx.remove()	delete plugin data
+10.13 Error Handling
+
+If plugin throws:
+
+Catch in pluginManager
+
+Log stack trace → /logs/plugin.log
+
+Notify user via UI banner (Plugin <name> disabled)
+
+Auto-disable entry in plugins.json
+
+Plugins are isolated so a crash never takes down the editor.
+
+10.14 Example Plugin: AI-Powered Diff Explainer
+
+/plugins/aiDiffExplainer.js
+
+export const meta = {
+  id: "aiDiffExplainer",
+  name: "AI Diff Explainer",
+  version: "1.0.0",
+  description: "Explains code changes using Gemini",
+  permissions: ["ai"]
+}
+
+export function register(ctx) {
+  ctx.on("diff:open", async (change) => {
+    const prompt = `Explain this code diff in plain English:\n${change}`;
+    const res = await ctx.ai.generate(prompt);
+    ctx.ui.addPanel("diffExplain", <p>{res.text}</p>);
+  });
+}
+
+10.15 Future Plugin Types
+
+Data Plugins: connect external sources (e.g., Notion, GitHub)
+
+Model Plugins: register custom AI providers
+
+Runtime Plugins: introduce new languages
+
+UI Plugins: visual themes and widgets
+
+Workflow Plugins: automate multi-step tasks
+
+10.16 Plugin Checklist (Before Merge)
+
+ meta block complete
+
+ register() / unregister() defined
+
+ No direct imports from renderer core
+
+ Permissions declared
+
+ Logs to its own file
+
+ Passes npm run test:plugins
+
+
+11 | Server & Backend Integration Blueprint
+11.1 Core Goals
+
+The server side must:
+
+Run independently of the UI (headless mode).
+
+Expose clean endpoints for runtime execution, AI requests, and plugin sync.
+
+Log everything for reproducibility and debugging.
+
+Be replaceable — another process, container, or local node instance should all behave the same.
+
+11.2 Directory Layout
+server/
+ ├── index.js           # Main entrypoint
+ ├── api/
+ │    ├── ai.js         # Gemini + OpenAI endpoints
+ │    ├── runtime.js    # Execute code snippets
+ │    ├── plugins.js    # Plugin registry sync
+ │    ├── files.js      # File upload, diff, and asset handling
+ │    └── metrics.js    # Usage telemetry
+ ├── ws/
+ │    ├── bridge.js     # WebSocket message handling
+ │    └── events.js     # Internal event bus
+ ├── utils/
+ │    ├── rateLimit.js
+ │    ├── logger.js
+ │    ├── security.js
+ │    └── env.js
+ └── middleware/
+      ├── auth.js
+      ├── parseBody.js
+      ├── errorHandler.js
+      └── cors.js
+
+11.3 Server Initialization
+
+/server/index.js
+
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
+import path from "path";
+import { fileURLToPath } from "url";
+import { applyMiddlewares } from "./middleware/stack.js";
+import { registerRoutes } from "./api/index.js";
+import { attachWebSocket } from "./ws/bridge.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
+
+applyMiddlewares(app);
+registerRoutes(app);
+attachWebSocket(io);
+
+const PORT = process.env.PORT || 5050;
+server.listen(PORT, () => console.log(`[Server] Running on port ${PORT}`));
+
+11.4 Middleware Stack
+
+middleware/stack.js
+
+import express from "express";
+import cors from "cors";
+import { parseBody } from "./parseBody.js";
+import { errorHandler } from "./errorHandler.js";
+import { rateLimit } from "../utils/rateLimit.js";
+
+export function applyMiddlewares(app) {
+  app.use(cors());
+  app.use(express.json({ limit: "5mb" }));
+  app.use(rateLimit());
+  app.use(parseBody);
+  app.use(errorHandler);
+}
+
+
+Handles parsing, CORS, rate limits, and error recovery globally.
+
+All route handlers return structured JSON {ok, data, error}.
+
+11.5 API Routes
+AI
+
+/api/ai.js
+
+import express from "express";
+import { generate } from "../../core/aiService.js";
+
+const router = express.Router();
+
+router.post("/generate", async (req, res) => {
+  try {
+    const { prompt, options } = req.body;
+    const result = await generate(prompt, options);
+    res.json({ ok: true, data: result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+export default router;
+
+Runtime
+
+/api/runtime.js
+
+import express from "express";
+import { run } from "../../core/runtimeManager.js";
+
+const router = express.Router();
+
+router.post("/execute", async (req, res) => {
+  const { lang, code } = req.body;
+  try {
+    const result = await run(lang, code);
+    res.json({ ok: true, data: result });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+export default router;
+
+Plugins
+
+/api/plugins.js
+
+Returns active plugins and their statuses.
+
+Allows upload or reload of new .js plugin files.
+
+import express from "express";
+import fs from "fs";
+import path from "path";
+import { reloadPlugins } from "../../core/pluginManager.js";
+
+const router = express.Router();
+const pluginDir = path.resolve("plugins");
+
+router.get("/", (req, res) => {
+  const list = fs.readdirSync(pluginDir).filter(f => f.endsWith(".js"));
+  res.json({ ok: true, data: list });
+});
+
+router.post("/reload", async (req, res) => {
+  await reloadPlugins();
+  res.json({ ok: true, message: "Plugins reloaded" });
+});
+
+export default router;
+
+Metrics
+
+/api/metrics.js
+
+import express from "express";
+import fs from "fs";
+const router = express.Router();
+
+router.get("/", (req, res) => {
+  const logs = fs.readFileSync("./logs/runtime_logs/summary.json", "utf8");
+  res.json({ ok: true, data: JSON.parse(logs) });
+});
+
+export default router;
+
+11.6 WebSocket Bridge
+
+Purpose: real-time updates between core, AI, and UI.
+File: /server/ws/bridge.js
+
+import { EventEmitter } from "events";
+
+export const eventBus = new EventEmitter();
+
+export function attachWebSocket(io) {
+  io.on("connection", socket => {
+    console.log(`[WS] Connected: ${socket.id}`);
+    socket.on("runtime:run", data => eventBus.emit("runtime:run", data));
+    socket.on("ai:prompt", data => eventBus.emit("ai:prompt", data));
+
+    eventBus.on("runtime:output", data => socket.emit("runtime:output", data));
+    eventBus.on("ai:response", data => socket.emit("ai:response", data));
+  });
+}
+
+11.7 Internal Metrics System
+
+Logs runtime/AI stats to /logs/metrics/
+
+Generates daily aggregates for Reports Pane
+
+Schema (/logs/metrics/2025-10-19.json):
+
+{
+  "runtimeCalls": 84,
+  "aiCalls": 192,
+  "avgLatencyMs": 1540,
+  "failures": 3
+}
+
+11.8 Security
+Rule	Enforcement
+No cross-origin POSTs without API key	CORS whitelist
+Limit 5MB request body	express.json()
+No file uploads outside /workspace	path whitelist
+Disable directory listing	middleware
+Log all unauthorized requests	/logs/security.log
+11.9 Testing Commands
+Action	Command
+Run local API	npm run dev:server
+Test all endpoints	npm run test:api
+Simulate load	npm run test:load
+Clear logs	npm run clean:logs
+11.10 Headless Mode
+
+You can start the backend alone:
+
+node server/index.js --headless
+
+
+Then connect via REST from a remote UI client.
+Electron detects active port automatically.
+
+11.11 Future Enhancements
+
+OAuth2 token auth for external API access
+
+GraphQL wrapper for plugin data
+
+Streaming AI outputs via WebSocket
+
+Local-first mode (no network required)
+
+Built-in diagnostics dashboard
+
+
+12 | Developer Operations & Deployment Blueprint
+12.1 Core Principles
+
+Single Source of Truth: one .env and one /config/settings.json.
+
+Immutable Builds: once packaged, configs load from environment overrides only.
+
+Zero Downtime: hot reload for development, graceful restart for production.
+
+One Command Rule: setup, build, or deploy in one line each.
+
+12.2 Directory Layout
+/config/
+ ├── settings.json       # API keys, runtime settings, defaults
+ ├── email.json          # notifications + SMTP info
+ ├── runtime.json        # sandbox configuration
+ ├── plugins.json        # plugin toggles
+ ├── env.template        # sample .env file
+/env/
+ ├── .env.local
+ ├── .env.production
+ └── .env.staging
+/scripts/
+ ├── setup.js
+ ├── build.js
+ ├── deploy.js
+ ├── test.js
+ └── reset.js
+
+12.3 Environment Variables
+Variable	Description
+GEMINI_API_KEY	Gemini API key
+OPENAI_API_KEY	OpenAI API key
+NODE_ENV	development / production
+PORT	backend port
+LOG_LEVEL	debug, info, warn, error
+USE_GPU	optional GPU runtime flag
+SENTRY_DSN	crash reporting
+PLUGINS_PATH	override plugin directory
+WORKSPACE_DIR	user workspace path
+
+All .env files are parsed by /scripts/setup.js and validated.
+
+12.4 Local Setup
+
+Command:
+
+npm run setup
+
+
+/scripts/setup.js
+
+import fs from "fs";
+import dotenv from "dotenv";
+
+if (!fs.existsSync(".env")) {
+  fs.copyFileSync("./config/env.template", ".env");
+  console.log("✔ .env created from template");
+}
+
+const env = dotenv.config().parsed;
+console.log("Loaded environment:", Object.keys(env));
+
+
+Creates .env → validates keys → prepares /logs/, /workspace/, /plugins/ if missing.
+
+12.5 Development Workflow
+Command	Action
+npm run dev	Starts Electron + backend + live reload
+npm run dev:server	Backend only
+npm run dev:ui	Renderer only
+npm run watch	Watches /core and /renderer for hot reload
+npm run lint	ESLint and Prettier
+npm run test	Unit and integration tests
+
+Local dev spins up:
+
+Backend: Express + WebSocket on port 5050
+
+Frontend: Vite / React dev server on port 3000
+
+Bridge: Electron preload layer connecting both
+
+12.6 Build Pipeline
+Step	Description
+npm run build:core	Transpile core JS to /dist/core/
+npm run build:ui	Builds React app with Vite
+npm run build:electron	Bundles Electron main/preload
+npm run build	Runs all builds sequentially
+npm run package	Creates platform-specific installers
+
+Build output layout:
+
+/dist/
+ ├── core/
+ ├── renderer/
+ ├── preload/
+ └── main/
+
+12.7 CI/CD Pipeline
+
+For GitHub Actions or similar:
+
+.github/workflows/build.yml
+
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run package
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: dist/
+
+
+Deployment variants:
+
+dev → auto-deploy preview build to localhost:5050
+
+staging → pushes Docker image to registry
+
+production → pushes release build + tagged version
+
+12.8 Packaging for Desktop
+
+Tool: Electron Builder
+Config snippet in package.json:
+
+"build": {
+  "appId": "com.gemini.playground",
+  "productName": "Gemini Playground",
+  "directories": { "output": "release" },
+  "files": ["dist/**/*", "config/**/*", "plugins/**/*"],
+  "mac": { "target": "dmg" },
+  "win": { "target": "nsis" },
+  "linux": { "target": "AppImage" }
+}
+
+
+Build:
+
+npm run dist
+
+
+Output installers go to /release/.
+
+12.9 Packaging for Web
+
+For deployment to cloud or container:
+
+npm run build:web
+
+
+Deploy static assets to /public/ and run Node backend as a microservice.
+Works on:
+
+Vercel (static UI + serverless API)
+
+Render.com
+
+Fly.io
+
+Docker
+
+12.10 Docker Container
+
+/Dockerfile
+
+FROM node:20-alpine
+WORKDIR /app
+COPY . .
+RUN npm ci && npm run build
+EXPOSE 5050
+CMD ["npm", "start"]
+
+
+Build and run:
+
+docker build -t gemini-playground .
+docker run -p 5050:5050 gemini-playground
+
+
+Optional GPU runtime:
+
+docker run --gpus all gemini-playground
+
+12.11 Logs & Monitoring
+Path	Description
+/logs/core.log	app lifecycle
+/logs/runtime_logs/	runtime executions
+/logs/audit.log	security & access
+/logs/ai_usage.log	AI requests
+/logs/plugin.log	plugin activity
+/logs/metrics/	system metrics
+
+You can tail logs:
+
+npm run logs:watch
+
+
+Sentry integration (if SENTRY_DSN set) captures runtime and renderer exceptions.
+
+12.12 Deployment Strategy
+
+Build once (npm run build).
+
+Tag release (v1.0.x).
+
+Push container or package.
+
+Sync configs via settings.json or environment overrides.
+
+Verify health:
+
+GET /api/ai/test
+
+GET /api/runtime/test
+
+GET /api/metrics
+
+12.13 Rollback Plan
+
+Old build artifacts stored under /release/backups/.
+
+Rollback command:
+
+npm run rollback -- --to v1.0.3
+
+
+Restores last good config snapshot and binary.
+
+12.14 Future Improvements
+
+Full CI/CD via GitHub → Docker → AWS ECS
+
+Automatic release notes generator
+
+Canary builds for beta users
+
+Encrypted secrets manager
+
+Self-healing service restarts
+
+
+13 | Visual Experience & Theming Blueprint
+13.1 Design Philosophy
+
+Function first. No empty decoration; motion must clarify state.
+
+Mood second. A palette that supports long creative sessions — calm neutrals, accent colors for state (blue = thinking, amber = pending, green = done, red = error).
+
+Depth through layering. Panels float with subtle shadows; AI responses glow faintly on hover to suggest “alive.”
+
+Consistency over flash. Everything uses the same 8 px spacing grid.
+
+13.2 CSS Architecture
+/renderer/styles/
+ ├── variables.css        # color palette + spacing tokens
+ ├── base.css             # resets + typography
+ ├── components.css       # buttons, inputs, modals, panels
+ ├── animations.css       # transitions + keyframes
+ ├── themes/
+ │    ├── light.css
+ │    ├── dark.css
+ │    └── solarized.css
+ └── index.css            # global import hub
+
+
+All React components import from index.css.
+Scoped class naming follows BEM (panel__header--active).
+
+Use CSS variables (--bg-primary, --text-muted) for theme swaps at runtime.
+
+13.3 Global Variables Example
+
+variables.css
+
+:root {
+  --font-sans: "Inter", "Segoe UI", sans-serif;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --transition-fast: 120ms ease;
+  --transition-slow: 280ms ease;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.1);
+  --shadow-md: 0 4px 8px rgba(0,0,0,0.15);
+  --shadow-lg: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+13.4 Theme Tokens
+Token	Light	Dark	Solarized
+--bg-primary	#ffffff	#121212	#fdf6e3
+--bg-secondary	#f3f3f3	#1e1e1e	#eee8d5
+--text-primary	#111	#eee	#657b83
+--accent	#3b82f6	#60a5fa	#268bd2
+--error	#ef4444	#f87171	#dc322f
+
+Theme files (e.g., dark.css) just override these variables.
+Switch themes by toggling <body data-theme="dark">.
+
+13.5 Component Styling Guide
+Panels
+.panel {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-slow);
+}
+.panel:hover {
+  box-shadow: var(--shadow-md);
+}
+
+Buttons
+.btn {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+.btn--primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn--primary:hover {
+  filter: brightness(1.1);
+}
+
+Inputs & Text Areas
+
+Consistent height (36 px).
+Focus ring = outline: 2px solid var(--accent);.
+
+13.6 Layout System
+
+12-column grid via CSS Grid.
+
+Breakpoints:
+
+≤ 600px → mobile stack
+
+600–1200px → two-column
+
+≥ 1200px → three-pane desktop
+
+Grid tokens in variables.css:
+
+--gap-sm: 8px;
+--gap-md: 16px;
+--gap-lg: 24px;
+
+13.7 Animations & Transitions
+
+animations.css
+
+@keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
+@keyframes pulse { 0%,100% {opacity:.8;} 50% {opacity:1;} }
+
+.fade-in { animation: fadeIn 0.2s ease both; }
+.pulse { animation: pulse 2s infinite ease-in-out; }
+
+
+Use only motion with purpose — hover feedback, load transitions, AI response arrival.
+
+13.8 Theming Logic in React
+
+/renderer/context/ThemeContext.tsx
+
+import React, { createContext, useState, useEffect } from "react";
+
+export const ThemeContext = createContext({ theme: "light", setTheme: ()=>{} });
+
+export function ThemeProvider({ children }) {
+  const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
+
+  useEffect(() => {
+    document.body.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+
+Switch theme anywhere:
+
+const { theme, setTheme } = useContext(ThemeContext);
+<button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>Toggle Theme</button>
+
+13.9 Brand Identity
+
+Logo SVG stored at /assets/logo.svg.
+
+Favicon auto-generated via npm run build:assets.
+
+Fonts served locally for offline use.
+
+Tone: Modern, editorial, slightly scientific.
+
+13.10 Accessibility
+Feature	Status
+Color contrast AA minimum	✓
+Keyboard navigation through panes	✓
+ARIA labels on AI response sections	✓
+Reduced-motion mode (prefers-reduced-motion)	✓
+13.11 Visual Testing
+
+Use Storybook for component visual tests:
+
+npm run storybook
+
+
+Stories live in /renderer/stories/.
+Snapshots saved under /tests/visual/.
+
+13.12 Future Enhancements
+
+Theme editor in Settings Modal (user-defined colors + export).
+
+3D background modes for AI panels (WebGL noise).
+
+Animated transitions between plugin panes.
+
+Voice feedback theme toggle (for accessibility).
+
+
+14 | Final Integration Checklist & Handoff Instructions
+14.1 Primary Objective
+
+Gemini Playground is a hybrid AI-development environment designed to:
+
+Support multi-model AI orchestration (Gemini, OpenAI, and user plugins).
+
+Run in Electron for desktop or Node/Vite for web.
+
+Be self-replicating and modular — every component can rebuild itself from configuration.
+
+Stay code-first, but with a responsive, reactive UI built for creative workflows.
+
+14.2 Core Principles
+
+Do not delete working systems — only extend or merge them.
+
+Full-file commits only — partial edits cause state drift.
+
+If a file is replaced, mark it clearly in the log.
+
+Every function must preserve original behavior unless deprecated explicitly.
+
+Read from environment before defaults — never hardcode secrets.
+
+Front and back stay decoupled; communicate through WebSocket or API only.
+
+One unified style: all new code follows async/await, ES module syntax, and strong typing in TS files.
+
+14.3 Folder Overview
+gemini-playground/
+ ├── core/              # backend logic and AI orchestration
+ ├── renderer/          # React-based UI
+ ├── preload/           # Electron preload bridges
+ ├── server/            # Express + WebSocket backend
+ ├── plugins/           # user and system extensions
+ ├── config/            # runtime and key configuration
+ ├── logs/              # runtime, AI, and security logs
+ ├── .vscode/           # workspace settings
+ ├── .env               # local environment keys
+ ├── package.json
+ ├── vite.config.js
+ └── tsconfig.json
+
+
+Each subsystem can be run standalone for testing.
+
+14.4 System Dependencies
+Type	Description
+Node.js	v20 or later
+npm	9+
+Python (optional)	for code analysis plugins
+Electron	bundled automatically
+Tailwind	for utility CSS
+React 18+	for renderer
+Express	for backend API
+Socket.io	for live bridge
+Vite	for development and build pipeline
+14.5 Core Runtime Flow
+Electron boot
+ └── loads preload/
+      ├── bridges IPC + file system
+      └── spawns server/index.js
+
+Server startup
+ ├── middleware stack → CORS, rateLimit, JSON parsing
+ ├── loads core/aiService + core/models
+ └── attaches websocket bridge
+
+Renderer startup
+ ├── React mount → App.tsx
+ ├── loads AIContext, SettingsContext, ProjectsContext
+ └── mounts panels (AI, Diff, Plugins, Settings)
+
+PluginManager
+ ├── loads /plugins/*.js
+ ├── registers custom providers to aiService
+ └── emits "plugin:ready"
+
+AIService
+ ├── resolves provider (Gemini/OpenAI/plugin)
+ ├── sends request
+ └── logs + caches result
+
+All components update via context + WebSocket events
+
+14.6 Key Interactions
+From	To	Channel	Purpose
+Renderer	Core	IPC / WS	Trigger AI request
+Core	Renderer	WS	Send AI responses
+Renderer	Server	REST	File actions, logs, metrics
+Plugin	Core	Direct import	Extend AI or UI logic
+14.7 Logging System
+
+/logs/core.log — system events
+
+/logs/audit.log — security and config changes
+
+/logs/ai_usage.log — model call summaries
+
+/logs/plugin.log — plugin load results
+
+/logs/runtime_logs/ — execution results
+
+/logs/metrics/ — daily metrics JSON
+
+All timestamps use UTC ISO 8601.
+
+14.8 Handoff Rules for Next Developer
+
+Full-file discipline
+
+Never copy snippets.
+
+Always commit entire file content.
+
+Include path and LOC in commit log.
+
+Change Log Format
+
+[UPDATE] /core/models.js (312 LOC)
+Added: multi-provider retry system.
+Replaced: deprecated model switch logic.
+
+
+Plugin Safety
+
+Each plugin runs sandboxed (vm2 or eval guard).
+
+Must export { name, init, onMessage }.
+
+Log on load to /logs/plugin.log.
+
+AI Provider Expansion
+
+Register new providers via aiService.registerProvider(name, fn).
+
+Never modify base functions directly.
+
+UI Additions
+
+Extend App.tsx routing only via Context or lazy loading.
+
+Reuse CSS tokens from /renderer/styles/variables.css.
+
+Testing
+
+Run npm run test:full before merge.
+
+Include snapshot comparisons for visual regressions.
+
+Error Policy
+
+All thrown errors must bubble to global handler.
+
+No silent catches unless explicitly noted.
+
+14.9 Quick Restore Procedure
+
+If a replacement or update breaks functionality:
+
+git restore path/to/file
+npm run clean:cache
+npm run dev
+
+
+If lost entirely:
+
+Recover from /logs/autoBackup/YYYY-MM-DD-HHMM.zip
+
+Re-run scripts/setup.js
+
+14.10 Validation Steps Before Commit
+Step	Command
+Lint	npm run lint
+Typecheck	npm run typecheck
+Unit tests	npm run test
+Build test	npm run build
+UI preview	npm run dev
+
+A change only passes once all succeed.
+
+14.11 Future Integration Hooks
+Module	Future Use
+/core/aiService.js	Hugging Face / Claude support
+/core/pluginManager.js	NPM-style plugin registry
+/server/ws/bridge.js	Federated multi-instance sync
+/renderer/dashboard	Live AI editing canvas
+/renderer/context/ProjectsContext.tsx	Team project sync
+/config/settings.json	Per-user profiles
+14.12 Development Commands Summary
+Action	Command
+Setup	npm run setup
+Dev mode	npm run dev
+Dev server only	npm run dev:server
+Build	npm run build
+Package	npm run dist
+Test suite	npm run test
+Clean cache	npm run clean
+Watch logs	npm run logs:watch
+14.13 Emergency Recovery
+
+If config or code corruption detected:
+
+npm run repair
+
+
+Triggers recovery daemon:
+
+Validates all .json config files
+
+Restores from last good /autoBackup snapshot
+
+Rebuilds dependency graph
+
+Restarts automatically
+
+14.14 Team / AI Collaboration Etiquette
+
+Always start with scan project before edits.
+
+Always confirm file status (new vs replace).
+
+Include full file code in every update.
+
+Do not delete original user logic; wrap or extend it.
+
+Keep commentary minimal but clear (contextual inline comments only).
+
+End each major cycle with confirm and backup snapshot.
+
+14.15 Final Notes
+
+This project was built from first principles — no frameworks doing the thinking for you.
+Its strength is in modularity: every subsystem can survive independently.
+
+Whoever picks this up next should:
+
+Respect the wiring that already exists.
+
+Extend, don’t overwrite.
+
+Build it like a living system — one change at a time, eyes open.
+
+

@@ -1,0 +1,78 @@
+{
+  "name": "gemini-playground",
+  "version": "1.0.0",
+  "description": "Gemini-CLI / AI Dev Suite — Electron + React + Vite + Tailwind + TypeScript",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on tcp:5173 && electron .",
+    "build": "vite build && electron-builder",
+    "lint": "eslint . --ext .ts,.tsx,.js",
+    "format": "prettier --write .",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.6.1",
+    "@types/node": "^22.0.0",
+    "ajv": "^6.12.6",
+    "archiver": "^7.0.1",
+    "electron": "^38.3.0",
+    "extract-zip": "^2.0.1",
+    "framer-motion": "^10.16.4",
+    "lucide-react": "^0.284.0",
+    "mitt": "^3.0.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwindcss": "^3.4.2",
+    "vm2": "^3.9.19"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
+    "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.2",
+    "dotenv": "^16.4.5",
+    "electron-builder": "^24.8.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "postcss": "^8.4.35",
+    "prettier": "^3.2.5",
+    "typescript": "^5.4.5",
+    "vite": "^7.1.10",
+    "wait-on": "^7.1.0"
+  },
+  "overrides": {
+    "dompurify": "^3.2.4"
+  },
+  "build": {
+    "appId": "com.geminiplayground.app",
+    "productName": "Gemini Playground",
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "preload.js",
+      "core/**/*",
+      "renderer/**/*",
+      "settings.json",
+      "plugins/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "renderer/assets/react.svg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

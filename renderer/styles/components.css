@@ -1,0 +1,27 @@
+/*
+ * /renderer/styles/components.css
+ *
+ * Contains reusable component styles (@layer components).
+ * Conforms to Spec 7.5 & 7.11.
+ */
+
+@layer components {
+  /*
+   * The base '.pane' class for all major UI panels.
+   * Use as: <div className="pane ...">
+   */
+  .pane {
+    @apply border border-border rounded-lg bg-panel shadow-sm;
+  }
+
+  /*
+   * A base for icon buttons, per Spec 7.7
+   */
+  .icon-button {
+    @apply p-2 rounded-md text-text-muted hover:text-text-main hover:bg-bg;
+    @apply transition-colors duration-150 ease-in-out;
+  }
+  .icon-button.active {
+    @apply bg-panel text-primary border border-primary;
+  }
+}

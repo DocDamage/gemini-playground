@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gemini Playground Plugin Schema",
+  "description": "Validates the 'meta' export of a plugin. Conforms to Batch 6 (Spec 4.2.9, 10.10).",
+  "type": "object",
+  "properties": {
+    "id": {
+      "description": "Unique machine-readable ID (e.g., 'auto-formatter').",
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "name": {
+      "description": "Human-readable plugin name (e.g., 'Auto Formatter').",
+      "type": "string"
+    },
+    "version": {
+      "description": "Semantic version (e.g., '1.0.0').",
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$"
+    },
+    "description": {
+      "description": "A brief summary of what the plugin does.",
+      "type": "string"
+    },
+    "author": {
+      "description": "The name or email of the plugin author.",
+      "type": "string"
+    },
+    "permissions": {
+      "description": "A list of core APIs this plugin needs access to.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "ai",
+          "runtime",
+          "sandbox",
+          "fs.read",
+          "fs.write",
+          "ipc",
+          "network",
+          "require:external"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "ui": {
+      "description": "Defines where the plugin should appear in the UI.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "toolbar",
+          "leftDrawer",
+          "rightDrawer",
+          "commandPalette"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "timeout": {
+      "description": "Custom execution timeout in milliseconds for this plugin.",
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 60000
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "version"
+  ]
+}

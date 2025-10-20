@@ -1,0 +1,7 @@
+{
+  "model": "gpt-4o",
+  "tokens": 4096,
+  "language": "en",
+  "autoReport": true,
+  "snapshotIntervalHours": 2
+}

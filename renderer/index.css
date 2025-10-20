@@ -1,0 +1,20 @@
+/**
+ * renderer/index.css
+ *
+ * BATCH 8 MODIFICATION:
+ * - This file is now the central import hub for all CSS.
+ * - Imports Tailwind, then our modular style files in order.
+ * - All CSS variables have been moved to /renderer/styles/theme.css.
+ */
+
+/* 1. Import our custom modules (Spec 7.11) */
+@import "./styles/theme.css";
+@import "./styles/base.css";
+/* @import "./styles/layout.css"; */ /* Will add this later if needed */
+@import "./styles/components.css";
+/* @import "./styles/animations.css"; */ /* Will add this later if needed */
+
+/* 2. Import Tailwind */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

@@ -1,0 +1,34 @@
+/*
+ * /renderer/styles/theme.css
+ *
+ * Contains all color variables for Light and Dark themes.
+ * Conforms to Spec 7.2.
+ */
+
+:root {
+  /* Light Theme */
+  --tw-color-primary: #2563EB; /* blue-600 */
+  --tw-color-accent: #A855F7; /* violet-500 */
+  --tw-color-bg: #F9FAFB; /* gray-50 */
+  --tw-color-panel: #FFFFFF;
+  --tw-color-border: #E5E7EB; /* gray-200 */
+  --tw-color-text-main: #111827; /* gray-900 */
+  --tw-color-text-muted: #6B7280; /* gray-500 */
+  --tw-color-error: #DC2626; /* red-600 */
+  --tw-color-success: #16A34A; /* green-600 */
+  --tw-color-warning: #F59E0B; /* amber-500 */
+}
+
+.dark {
+  /* Dark Theme */
+  --tw-color-primary: #3B82F6; /* blue-500 */
+  --tw-color-accent: #C084FC; /* violet-400 */
+  --tw-color-bg: #0D1117;
+  --tw-color-panel: #161B22;
+  --tw-color-border: #2D333B;
+  --tw-color-text-main: #F9FAFB; /* gray-50 */
+  --tw-color-text-muted: #9CA3AF; /* gray-400 */
+  --tw-color-error: #F87171; /* red-400 */
+  --tw-color-success: #4ADE80; /* green-400 */
+  --tw-color-warning: #FBBF24; /* amber-400 */
+}

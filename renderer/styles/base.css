@@ -1,0 +1,38 @@
+/*
+ * /renderer/styles/base.css
+ *
+ * Contains base element styles, typography, and scrollbars.
+ * Conforms to Spec 7.3 & 7.11.
+ */
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  /* Use the CSS vars for theme-aware background/text */
+  background-color: var(--tw-color-bg);
+  color: var(--tw-color-text-main);
+  /* Use the new 'sans' font family from tailwind.config.js */
+  font-family: theme('fontFamily.sans');
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Base scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--tw-color-border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--tw-color-text-muted);
+}

@@ -69,6 +69,20 @@ export default defineConfig([
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/immutability': 'off',
       'react-hooks/purity': 'off',
+      // Prevent renderer from importing Node-only core modules
+      // Reason: Core modules use Node.js APIs (fs, path, crypto, node-fetch) that cannot be bundled
+      // by Vite for the browser. Renderer must use browser-safe shims from renderer/shims/ instead.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@core', '@core/*', '../core', '../../core', '../../../core'],
+              message: 'Renderer cannot import from core. Use browser-safe shims from renderer/shims/ instead.',
+            },
+          ],
+        },
+      ],
     },
   },
   {

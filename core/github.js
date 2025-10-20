@@ -1,295 +1,147 @@
 /**
  * core/github.js
  *
- * GitHub integration module
+ * Environment-aware loader for GitHub integration module
  *
- * Original design preserved:
- *   - OAuth token management
- *   - Repo creation and cloning
- *   - File commit/push logic
- *   - Gist import/export
+ * This file detects the runtime environment and dynamically imports the appropriate implementation:
+ * - In Node.js (main/preload): imports core/github.node.js (full implementation with fs, path, crypto, node-fetch)
+ * - In browser (renderer): would import renderer/shims/githubStub.ts (browser-safe stub)
  *
- * Additions:
- *   - token validation + caching
- *   - retry + timeout logic
- *   - audit + alerts integration
- *   - commit safety and rollback handling
+ * NO Node-only imports at module top-level to prevent Vite bundling issues.
+ * All exports are async wrappers that delegate to the environment-specific implementation.
  */
 
-import fs from "fs";
-import path from "path";
-import crypto from "crypto";
-import { record as audit } from "./audit.js";
-import { info, warn, error } from "./alerts.js";
-import { captureError } from "./autoReporter.js";
-import { tryGetFetch } from "./httpClient.js";
+// Environment detection
+const isNode = typeof process !== 'undefined' && 
+               process.versions != null && 
+               process.versions.node != null;
 
-const CONFIG_PATH = path.resolve("./config/github.json");
-const CACHE_DIR = path.resolve("./cache/github");
-const API_BASE = "https://api.github.com";
-const TIMEOUT_MS = 15000;
-const RETRY_LIMIT = 3;
+let impl = null;
 
-if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
-
-// ──────────────────────────────────────────────────────────────
-// Configuration
-// ──────────────────────────────────────────────────────────────
-function getConfig() {
-  if (!fs.existsSync(CONFIG_PATH)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
-  } catch {
-    return {};
+async function getImpl() {
+  if (impl) return impl;
+  
+  if (isNode) {
+    // In Node.js: use the full Node implementation
+    impl = await import('./github.node.js');
+  } else {
+    // In browser: use the renderer stub
+    impl = await import('../renderer/shims/githubStub.ts');
   }
-}
-
-function saveConfig(data) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2));
-}
-
-let { githubToken, githubUser } = getConfig();
-
-// ──────────────────────────────────────────────────────────────
-// HTTP utility
-// ──────────────────────────────────────────────────────────────
-async function request(url, method = "GET", body = null, retry = 0) {
-  const fetchImpl = tryGetFetch();
-  if (!fetchImpl) {
-    const err = new Error("Global fetch API is not available in this environment.");
-    captureError(err, "github");
-    throw err;
-  }
-
-  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const timeoutId = setTimeout(() => {
-    if (controller) controller.abort();
-  }, TIMEOUT_MS);
-
-  try {
-    const response = await fetchImpl(url, {
-      method,
-      headers: {
-        Authorization: `token ${githubToken}`,
-        "Content-Type": "application/json",
-        Accept: "application/vnd.github+json",
-        "User-Agent": "Gemini-Playground",
-      },
-      body: body ? JSON.stringify(body) : null,
-      signal: controller?.signal,
-    });
-
-    if (!response.ok) {
-      const txt = await response.text();
-      throw new Error(`GitHub API error: ${response.status} - ${txt}`);
-    }
-
-    const contentLength = response.headers.get("content-length");
-    if (response.status === 204 || contentLength === "0") {
-      return null;
-    }
-
-    const text = await response.text();
-    return text ? JSON.parse(text) : null;
-  } catch (err) {
-    const normalizedError =
-      err && typeof err === "object" && err.name === "AbortError"
-        ? new Error("GitHub request timed out")
-        : err instanceof Error
-        ? err
-        : new Error(String(err));
-
-    if (retry < RETRY_LIMIT) {
-      warn(`Retrying GitHub request: ${url} (${retry + 1})`, "github");
-      return request(url, method, body, retry + 1);
-    }
-    captureError(normalizedError, "github");
-    error(`GitHub request failed: ${normalizedError.message}`, "github");
-    throw normalizedError;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  
+  return impl;
 }
 
 // ──────────────────────────────────────────────────────────────
-// Auth
+// Async wrappers for all exports
 // ──────────────────────────────────────────────────────────────
+
 export async function setToken(token) {
-  githubToken = token;
-  saveConfig({ githubToken, githubUser });
-  audit("github_token_set", {}, "github");
-  info("GitHub token updated", "github");
-  return validateToken();
+  const module = await getImpl();
+  return module.setToken(token);
 }
 
 export async function validateToken() {
-  if (!githubToken) throw new Error("GitHub token missing");
-  try {
-    const user = await request(`${API_BASE}/user`);
-    githubUser = user.login;
-    saveConfig({ githubToken, githubUser });
-    audit("github_token_valid", { user: githubUser }, "github");
-    info(`Authenticated as ${githubUser}`, "github");
-    return githubUser;
-  } catch (err) {
-    captureError(err, "github");
-    error(`Token validation failed: ${err.message}`, "github");
-    throw err;
+  const module = await getImpl();
+  return module.validateToken();
+}
+
+export async function getUser() {
+  const module = await getImpl();
+  return module.getUser();
+}
+
+// Synchronous helper for Node.js callers (only available in Node)
+export function getUserSync() {
+  if (!isNode) {
+    throw new Error('getUserSync is only available in Node.js environment');
   }
+  // For sync access in Node, we need to ensure the module is already loaded
+  if (!impl) {
+    throw new Error('GitHub module not initialized. Call an async method first.');
+  }
+  return impl.getUserSync ? impl.getUserSync() : impl.getUser();
 }
 
-export function getUser() {
-  return githubUser || null;
-}
-
-// ──────────────────────────────────────────────────────────────
-// Repository handling
-// ──────────────────────────────────────────────────────────────
 export async function createRepo(name, isPrivate = true, description = "") {
-  if (!githubToken) throw new Error("Missing GitHub token");
-  const payload = { name, private: isPrivate, description };
-
-  const repo = await request(`${API_BASE}/user/repos`, "POST", payload);
-  audit("repo_created", { name, private: isPrivate }, "github");
-  info(`Created repo ${repo.full_name}`, "github");
-  return repo;
+  const module = await getImpl();
+  return module.createRepo(name, isPrivate, description);
 }
 
 export async function listRepos() {
-  const repos = await request(`${API_BASE}/user/repos?per_page=100`);
-  audit("repos_listed", { count: repos.length }, "github");
-  return repos;
+  const module = await getImpl();
+  return module.listRepos();
 }
 
 export async function getRepo(owner, repo) {
-  const data = await request(`${API_BASE}/repos/${owner}/${repo}`);
-  audit("repo_fetched", { repo }, "github");
-  return data;
+  const module = await getImpl();
+  return module.getRepo(owner, repo);
 }
 
 export async function deleteRepo(owner, repo) {
-  await request(`${API_BASE}/repos/${owner}/${repo}`, "DELETE");
-  audit("repo_deleted", { repo }, "github");
-  warn(`Deleted repo ${owner}/${repo}`, "github");
-  return true;
-}
-
-// ──────────────────────────────────────────────────────────────
-// File handling (commit/push)
-// ──────────────────────────────────────────────────────────────
-async function getFileSha(owner, repo, pathInRepo, branch = "main") {
-  try {
-    const res = await request(
-      `${API_BASE}/repos/${owner}/${repo}/contents/${pathInRepo}?ref=${branch}`
-    );
-    return res.sha;
-  } catch {
-    return null;
-  }
+  const module = await getImpl();
+  return module.deleteRepo(owner, repo);
 }
 
 export async function commitFile(owner, repo, pathInRepo, content, message, branch = "main") {
-  if (!githubToken) throw new Error("Missing GitHub token");
-  const encoded = Buffer.from(content, "utf8").toString("base64");
-  const sha = await getFileSha(owner, repo, pathInRepo, branch);
-  const body = { message, content: encoded, branch };
-  if (sha) body.sha = sha;
-
-  const res = await request(`${API_BASE}/repos/${owner}/${repo}/contents/${pathInRepo}`, "PUT", body);
-  audit("file_committed", { owner, repo, path: pathInRepo }, "github");
-  info(`Committed ${pathInRepo} to ${repo}`, "github");
-  return res;
+  const module = await getImpl();
+  return module.commitFile(owner, repo, pathInRepo, content, message, branch);
 }
 
-// ──────────────────────────────────────────────────────────────
-// Gists
-// ──────────────────────────────────────────────────────────────
 export async function createGist(filename, content, description = "", isPublic = false) {
-  const body = {
-    description,
-    public: isPublic,
-    files: {
-      [filename]: { content },
-    },
-  };
-
-  const res = await request(`${API_BASE}/gists`, "POST", body);
-  audit("gist_created", { filename, id: res.id }, "github");
-  info(`Created gist ${res.id}`, "github");
-  return res;
+  const module = await getImpl();
+  return module.createGist(filename, content, description, isPublic);
 }
 
 export async function updateGist(id, filename, content) {
-  const body = {
-    files: {
-      [filename]: { content },
-    },
-  };
-  const res = await request(`${API_BASE}/gists/${id}`, "PATCH", body);
-  audit("gist_updated", { id, filename }, "github");
-  info(`Updated gist ${id}`, "github");
-  return res;
+  const module = await getImpl();
+  return module.updateGist(id, filename, content);
+}
+
+export async function createOrUpdateGist(id, filename, content) {
+  const module = await getImpl();
+  return module.createOrUpdateGist ? module.createOrUpdateGist(id, filename, content) : 
+         (id ? module.updateGist(id, filename, content) : module.createGist(filename, content));
 }
 
 export async function getGist(id) {
-  const res = await request(`${API_BASE}/gists/${id}`);
-  audit("gist_fetched", { id }, "github");
-  return res;
+  const module = await getImpl();
+  return module.getGist(id);
+}
+
+export async function getStoredToken() {
+  const module = await getImpl();
+  return module.getStoredToken ? module.getStoredToken() : null;
 }
 
 export async function deleteGist(id) {
-  await request(`${API_BASE}/gists/${id}`, "DELETE");
-  audit("gist_deleted", { id }, "github");
-  warn(`Deleted gist ${id}`, "github");
-  return true;
+  const module = await getImpl();
+  return module.deleteGist(id);
 }
 
-// ──────────────────────────────────────────────────────────────
-// Local sync helpers
-// ──────────────────────────────────────────────────────────────
-export function cacheCommit(owner, repo, file, content) {
-  const key = crypto.createHash("sha256").update(`${owner}/${repo}/${file}`).digest("hex");
-  const filePath = path.join(CACHE_DIR, `${key}.json`);
-  fs.writeFileSync(filePath, JSON.stringify({ owner, repo, file, content, date: new Date().toISOString() }, null, 2));
-  audit("commit_cached", { file }, "github");
-  info(`Cached commit for ${file}`, "github");
-  return filePath;
+export async function cacheCommit(owner, repo, file, content) {
+  const module = await getImpl();
+  return module.cacheCommit(owner, repo, file, content);
 }
 
-export function listCachedCommits() {
-  return fs
-    .readdirSync(CACHE_DIR)
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => JSON.parse(fs.readFileSync(path.join(CACHE_DIR, f), "utf8")));
+export async function listCachedCommits() {
+  const module = await getImpl();
+  return module.listCachedCommits();
 }
 
 export async function flushCachedCommits() {
-  const cached = listCachedCommits();
-  let successCount = 0;
-
-  for (const entry of cached) {
-    try {
-      await commitFile(entry.owner, entry.repo, entry.file, entry.content, "Sync cached commit");
-      fs.unlinkSync(path.join(CACHE_DIR, `${crypto.createHash("sha256").update(`${entry.owner}/${entry.repo}/${entry.file}`).digest("hex")}.json`));
-      successCount++;
-    } catch (err) {
-      captureError(err, "github");
-      warn(`Failed to flush cached commit for ${entry.file}: ${err.message}`, "github");
-    }
-  }
-
-  audit("commits_flushed", { count: successCount }, "github");
-  info(`Flushed ${successCount} cached commits`, "github");
-  return successCount;
+  const module = await getImpl();
+  return module.flushCachedCommits();
 }
 
 // ──────────────────────────────────────────────────────────────
-// Export unified interface
+// Default export with all methods
 // ──────────────────────────────────────────────────────────────
 export default {
   setToken,
   validateToken,
   getUser,
+  getUserSync,
   createRepo,
   listRepos,
   getRepo,
@@ -297,7 +149,9 @@ export default {
   commitFile,
   createGist,
   updateGist,
+  createOrUpdateGist,
   getGist,
+  getStoredToken,
   deleteGist,
   cacheCommit,
   listCachedCommits,

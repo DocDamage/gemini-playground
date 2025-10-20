@@ -69,6 +69,19 @@ export default defineConfig([
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/immutability': 'off',
       'react-hooks/purity': 'off',
+      // Prevent accidental static imports of Node-only core modules into the renderer bundle
+      // which causes Vite bundling failures. Renderer should use IPC to communicate with main process.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@core', '@core/*', '../core', '../../core', '../core/*', '../../core/*'],
+              message: 'Renderer must not directly import core modules. Use IPC bridges instead.',
+            },
+          ],
+        },
+      ],
     },
   },
   {

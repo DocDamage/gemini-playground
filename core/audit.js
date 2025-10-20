@@ -73,7 +73,7 @@ function rotateIfNeeded() {
 // ──────────────────────────────────────────────────────────────
 // Write event
 // ──────────────────────────────────────────────────────────────
-function record(eventType, details = {}, actor = "system") {
+export function record(eventType, details = {}, actor = "system") {
   const entry = {
     timestamp: new Date().toISOString(),
     eventType,

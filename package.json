@@ -56,8 +56,10 @@
       "dist/**/*",
       "main.js",
       "preload.js",
+      "preload/**/*",
+      "config/**/*",
       "core/**/*",
-      "renderer/**/*",
+      "renderer/dist/**/*",
       "settings.json",
       "plugins/**/*"
     ],
